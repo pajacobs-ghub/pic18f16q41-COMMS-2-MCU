@@ -1,0 +1,18 @@
+Pin allocations for PIC18F16Q41-I/P COMMS-2-MCU talking to Pico2 DAQ-MCU
+PJ 2025-04-07
+
+                 PIC18F16Q41
+                +-----v-----+
+Vsys          1 | VDD   VSS | 20           GND
+SPICLK-in     2 | RA5   RA0 | 19       ICSPDAT
+SPICLK-out    3 | RA4   RA1 | 18       ICSPCLK
+MCLR#         4 | RA3   RA2 | 17         TX1DE
+(NC)          5 | RC5   RC0 | 16           TX1
+LED           6 | RC4   RC1 | 15           RX1
+EXTTRIG       7 | RC3   RC2 | 14       OPA1OUT
+RESTART#      8 | RC6   RB4 | 13           TX2
+BUSY#         9 | RC7   RB5 | 12           RX2
+EVENT#       10 | RB7   RB6 | 11   Pico2-EVENT
+                +-----------+
+
+Notes: 
