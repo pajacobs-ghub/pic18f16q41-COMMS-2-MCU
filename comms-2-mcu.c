@@ -360,18 +360,7 @@ uint8_t enable_comparator(uint8_t level, int8_t slope)
 
 void disable_comparator()
 {
-    // Release the EVENTn pin and disable the comparator and CLC.
-    LATBbits.LATB7 = 1;
-    TRISBbits.TRISB7 = 1; // return to being an input
-    GIE = 0;
-    PPSLOCK = 0x55;
-    PPSLOCK = 0xaa;
-    PPSLOCKED = 0;
-    RB7PPS = 0x00; // LATB7 (back to software control)
-    PPSLOCK = 0x55;
-    PPSLOCK = 0xaa;
-    PPSLOCKED = 1;
-    //
+    CM1CON0bits.EN = 0;
     CLCSELECT = 0b00; // To select CLC1 for the following setting.
     CLCnCONbits.EN = 0;
     CM1CON0bits.EN = 0;
@@ -552,7 +541,8 @@ void interpret_RS485_command(char* cmdStr)
             uart1_putstr(bufB);
             break;
         case 'd':
-            // Disable comparator and release EVENTn line.
+            // Disable comparator and, maybe, release the EVENTn line.
+            // The state of the EVENTn line also depends on Pico2-EVENT.
             disable_comparator();
             nchar = snprintf(bufB, NBUFB, "/0d Disable comparator#\n");
             uart1_putstr(bufB);
@@ -588,16 +578,17 @@ void interpret_RS485_command(char* cmdStr)
         case 'X':
             // Pass through a command to the AVR MCU.
             if (READYPIN) {
-                // AVR is ready and waiting for a command.
+                // DAQ MCU is ready and waiting for a command.
+                // nchar = snprintf(bufB, NBUFB, "DEBUG About to send command:%s\n", &cmdStr[1]); uart1_putstr(bufB);
                 uart2_putstr(&cmdStr[1]);
-                uart2_putch('\r');
-                // The AVR may start its response within 200us,
+                uart2_putch('\n');
+                // The DAQ MCU may start its response within 200us,
                 // so start listening for that response immediately.
                 uart2_getstr(bufC, NBUFC);
                 nchar = snprintf(bufB, NBUFB, "/0X %s#\n", &bufC[0]);
             } else {
-                // AVR is not ready for a command.
-                nchar = snprintf(bufB, NBUFB, "/0X error: AVR busy#\n");
+                // DAQ MCU is not ready for a command.
+                nchar = snprintf(bufB, NBUFB, "/0X error: DAQ MCU busy#\n");
             }
             uart1_putstr(bufB);
             break;
