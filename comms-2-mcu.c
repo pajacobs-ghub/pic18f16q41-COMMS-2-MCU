@@ -66,7 +66,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define VERSION_STR "v0.1 PIC18F16Q41 COMMS-2-MCU 2025-04-07"
+#define VERSION_STR "v0.2 PIC18F16Q41 COMMS-2-MCU 2025-04-12"
 
 // Each device on the RS485 network has a unique single-character identity.
 // The master (PC) has identity '0'. Slave nodes may be 1-9A-Za-z.
@@ -606,6 +606,7 @@ int main(void)
     init_pins();
     uart1_init(115200); // RS485 comms
     uart2_init(230400); // comms to DAQ-MCU
+    uart2_flush_rx(); // Discard any characters already arrived from Pico2 MCU
     FVR_init();
     ADC_init();
     __delay_ms(10);
@@ -616,7 +617,7 @@ int main(void)
         LED = 0;
         __delay_ms(250);
     }
-    // Wait until we are reasonably sure that the AVR has restarted
+    // Wait until we are reasonably sure that the Pico2 has restarted
     // and then flush the incoming serial buffer.
     __delay_ms(100);
     uart2_flush_rx();
