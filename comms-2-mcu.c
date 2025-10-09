@@ -80,7 +80,8 @@ uint8_t override_led = 0;
 #define RESTARTn (LATCbits.LATC6)
 
 void init_pins()
-{
+{   
+  
     // RC4 as digital-output for LED.
     LED = 0;
     TRISCbits.TRISC4 = 0;
@@ -445,7 +446,7 @@ void interpret_RS485_command(char* cmdStr)
     const char* sep_tok = ", ";
     int nchar;
     uint8_t i, j;
-    // nchar = printf("DEBUG: cmdStr=%s", cmdStr);
+    //nchar = printf("DEBUG: cmdStr=%s", cmdStr);
     if (!override_led) LED = 1; // To indicate start of interpreter activity.
     switch (cmdStr[0]) {
         case 'v':
@@ -624,6 +625,7 @@ int main(void)
     // We will operate this COMMS_MCU as a slave,
     // waiting for commands and only responding when spoken to.
     while (1) {
+        
         // Characters are not echoed as they are typed.
         // Backspace deleting is allowed.
         // NL (Ctrl-J) signals end of incoming string.

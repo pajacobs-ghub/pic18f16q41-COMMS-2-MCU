@@ -147,36 +147,41 @@ void uart2_init(long baud)
     // Sections 34.2.1.8 and 34.2.2.1
     // We do not use hardware flow control.
     unsigned int brg_value;
-    //
-    // Configure PPS RX2=RB5, TX2=RB4 
-    GIE = 0;
-    PPSLOCK = 0x55;
-    PPSLOCK = 0xaa;
-    PPSLOCKED = 0;
-    U2RXPPS = 0b001101; // RB5
-    RB4PPS = 0x13; // UART2 TX
-    U2CTSPPS = 0b001010; // RB2 does not exist and should always read as 0
-    PPSLOCK = 0x55;
-    PPSLOCK = 0xaa;
-    PPSLOCKED = 1;
-    ANSELBbits.ANSELB4 = 0; // TX2 on RB4 pin
-    TRISBbits.TRISB4 = 0; // output
-    ANSELBbits.ANSELB5 = 0; // Turn on digital input buffer for RX2
-    TRISBbits.TRISB5 = 1; // RX2 on RB5 is an input
-    //
-    U2CON0bits.BRGS = 1;
-    brg_value = (unsigned int) (FOSC/baud/4 - 1);
-    // For 64MHz,   9600 baud                 1665.  (error 0.04%)
-    //            115200 baud, expect value of 137.  (error 0.6%)
-    //            230400 baud                   68.  (error 0.6%)
-    //            460800 baud                   33.  (error 2.2%)
+    
+    // Configure PPS RX2=RB4, TX2=RB5
+    GIE = 0;                    // Disable interrupts during PPS configuration
+    PPSLOCK = 0x55;             // Unlock PPS
+    PPSLOCK = 0xAA;
+    PPSLOCKED = 0;              // PPS is unlocked
+    
+    U2RXPPS = 0b001100;         // Map EUSART2 RX to RB4 (PORTB, pin 4)
+    RB5PPS = 0x13;              // Map EUSART2 TX to RB5 (EUSART2 TX output)
+    RB4PPS = 0x00;              // Clear RB4 PPS (no output function needed)
+    
+    PPSLOCK = 0x55;             // Lock PPS
+    PPSLOCK = 0xAA;
+    PPSLOCKED = 1;              // PPS is locked
+    
+    ANSELBbits.ANSELB4 = 0;     // Disable analog function for RB4 (RX)
+    TRISBbits.TRISB4 = 1;       // Set RB4 as input (RX)
+    ANSELBbits.ANSELB5 = 0;     // Disable analog function for RB5 (TX)
+    TRISBbits.TRISB5 = 0;       // Set RB5 as output (TX)
+    
+    // Configure EUSART2
+    U2CON0bits.BRGS = 1;        // High-speed baud rate generator
+    brg_value = (unsigned int)(FOSC / baud / 4 - 1);
+    // For 64MHz,   9600 baud: 1665 (error 0.04%)
+    //            115200 baud:  137 (error 0.6%)
+    //            230400 baud:   68 (error 0.6%)
+    //            460800 baud:   33 (error 2.2%)
     U2BRG = brg_value;
-    //
-    U2CON0bits.MODE = 0b0000; // Use 8N1 asynchronous
-    U2CON2bits.FLO = 0b00; // Hardware flow control off
-    U2CON0bits.RXEN = 1;
-    U2CON0bits.TXEN = 1;
-    U2CON1bits.ON = 1;
+    
+    U2CON0bits.MODE = 0b0000;   // 8N1 asynchronous mode
+    U2CON2bits.FLO = 0b00;     // Hardware flow control off
+    U2CON0bits.RXEN = 1;        // Enable receiver
+    U2CON0bits.TXEN = 1;        // Enable transmitter
+    U2CON1bits.ON = 1;          // Enable EUSART2
+    
     return;
 }
 
