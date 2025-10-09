@@ -4,6 +4,9 @@
 //
 // Peter J.
 // 2025-04-07 First cut is just a copy of the COMMS-MCU code from the AVR board.
+// 
+// Jeremy M.
+// 2025-10-09 swapped RB4 / RB5 since I literally got my wires (RX, TX) crossed.
 //
 // CONFIG1
 #pragma config FEXTOSC = OFF
