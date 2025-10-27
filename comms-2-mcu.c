@@ -5,8 +5,6 @@
 // Peter J.
 // 2025-04-07 First cut is just a copy of the COMMS-MCU code from the AVR board.
 // 
-// Jeremy M.
-// 2025-10-09 swapped RB4 / RB5 since I literally got my wires (RX, TX) crossed.
 //
 // CONFIG1
 #pragma config FEXTOSC = OFF
@@ -69,7 +67,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define VERSION_STR "v0.2 PIC18F16Q41 COMMS-2-MCU 2025-04-12"
+#define VERSION_STR "v0.3 PIC18F16Q41 COMMS-2-MCU 2025-10-27"
 
 // Each device on the RS485 network has a unique single-character identity.
 // The master (PC) has identity '0'. Slave nodes may be 1-9A-Za-z.
@@ -609,6 +607,7 @@ int main(void)
     int n;
     init_pins();
     uart1_init(115200); // RS485 comms
+    // printf("DEBUG Hello there...\n");
     uart2_init(230400); // comms to DAQ-MCU
     uart2_flush_rx(); // Discard any characters already arrived from Pico2 MCU
     FVR_init();
