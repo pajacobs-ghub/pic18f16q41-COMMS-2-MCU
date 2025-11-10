@@ -2,9 +2,8 @@
 // RS485 communications MCU using the PIC18F16Q41.
 // A Pico2 is the DAQ-MCU.
 //
-// Peter J.
-// 2025-04-07 First cut is just a copy of the COMMS-MCU code from the AVR board.
-// 
+// PJ: 2025-04-07 First cut is just a copy of the COMMS-MCU code from the AVR board.
+// JH: 2025-11-10 Fixed the EVENT# pin handling
 //
 // CONFIG1
 #pragma config FEXTOSC = OFF
@@ -67,7 +66,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define VERSION_STR "v0.3 PIC18F16Q41 COMMS-2-MCU 2025-10-27"
+#define VERSION_STR "v0.43 PIC18F16Q41 COMMS-2-MCU 2025-11-10"
 
 // Each device on the RS485 network has a unique single-character identity.
 // The master (PC) has identity '0'. Slave nodes may be 1-9A-Za-z.
@@ -93,7 +92,7 @@ void init_pins()
     ANSELCbits.ANSELC7 = 0;
     //
     // RB7 as digital-input for Event# signal.
-    // Later, it may be driven by this MCU, on software command.
+    // Later, it may be driven by CLC3 when comparator is enabled.
     TRISBbits.TRISB7 = 1;
     ANSELBbits.ANSELB7 = 0;
     //
@@ -147,48 +146,9 @@ void init_pins()
     // Now that the connections are made and function selected, enable it.
     CLCnCONbits.EN = 1;
     //
-    // Combine the Pico2-EVENT (RB6) signal with the comparator-latch signal
-    // and output the result to the system EVENT# line (RB7).
-    ANSELBbits.ANSELB7 = 0;
-    ODCONBbits.ODCB7 = 1;
-    LATBbits.LATB7 = 1;
-    TRISBbits.TRISB7 = 0; // output to EVENT# line
+    // RB6 as input from Pico2 for PICO2-EVENT signal
     ANSELBbits.ANSELB6 = 0;
     TRISBbits.TRISB6 = 1; // input from Pico2
-    // Use CLC3 to to combine the event signals.
-    // Follow the set-up description in Section 22.6 of datasheet.
-    CLCSELECT = 0b10; // To select CLC3 registers for the following settings.
-    CLCnCONbits.EN = 0; // Disable while setting up.
-    // Data select from outside world
-    CLCnSEL0 = 0b1; // data1 gets CLCIN1PPS as input (Pico2-EVENT)
-    CLCnSEL1 = 0b1; // data2 gets CLCIN1PPS as input, also
-    CLCnSEL2 = 0b00100010; // data3 gets CLC1 (comparator latch)
-    CLCnSEL3 = 0b00100010; // data4 gets CLC1, also
-    // Logic select into gates
-    CLCnGLS0 = 0b00000010; // data1 goes through true to gate 1
-    CLCnGLS1 = 0b00001000; // data2 goes through true to gate 2
-    CLCnGLS2 = 0b00100000; // data3 goes through true to gate 3
-    CLCnGLS3 = 0b10000000; // data4 goes through true to gate 4
-    // Gate output polarities
-    CLCnPOLbits.G1POL = 0;
-    CLCnPOLbits.G2POL = 0;
-    CLCnPOLbits.G3POL = 0;
-    CLCnPOLbits.G4POL = 0;
-    // Logic function is AND-OR
-    CLCnCONbits.MODE = 0b000;
-    CLCnPOLbits.POL = 1; // Invert output; EVENT# is active low.
-    // Connect CLC3 to the CLC1 and RB7 pin.
-    GIE = 0;
-    PPSLOCK = 0x55;
-    PPSLOCK = 0xaa;
-    PPSLOCKED = 0;
-    CLCIN1PPS = 0b001110; // RB6
-    RB7PPS = 0x03; // CLC3OUT
-    PPSLOCK = 0x55;
-    PPSLOCK = 0xaa;
-    PPSLOCKED = 1;
-    // Now that the connections are made and function selected, enable it.
-    CLCnCONbits.EN = 1;
     //
     return;
 }
@@ -350,20 +310,70 @@ uint8_t enable_comparator(uint8_t level, int8_t slope)
     CLCnPOLbits.G4POL = 0;
     // Logic function is S-R latch
     CLCnCONbits.MODE = 0b011;
-    CLCnPOLbits.POL = 0;
-    // We don't directly connect the output of this latch to the 
-    // outside world but combine it with the Pico2-EVENT signal
-    // using CLC3, which was set up just after reset.
-    //
+    CLCnPOLbits.POL = 0; // No inversion on CLC1 itself
     // Now that the S-R latch is set up, enable it.
     CLCnCONbits.EN = 1;
+    //
+    // Use CLC3 to combine the Pico2-EVENT (RB6) signal with CLC1 latch output.
+    // PICO2_EVENT (RB6) is active HIGH, CLC1 output is active HIGH.
+    // SYS_EVENT (RB7) should be active LOW when either input is active.
+    // Logic: RB7 = NOT(RB6 OR CLC1)
+    CLCSELECT = 0b10; // To select CLC3 registers
+    CLCnCONbits.EN = 0; // Disable while setting up
+    // Data select from outside world
+    CLCnSEL0 = 0b1; // data1 gets CLCIN1PPS (RB6)
+    CLCnSEL1 = 0b00100010; // data2 gets CLC1 output
+    CLCnSEL2 = 0b1; // data3 gets CLCIN1PPS
+    CLCnSEL3 = 0b00100010; // data4 gets CLC1
+    // Logic select for OR: G1=d1, G2=d1, G3=d2, G4=d2 gives d1 OR d2
+    CLCnGLS0 = 0b00000010; // data1 (RB6) to gate 1
+    CLCnGLS1 = 0b00000010; // data1 (RB6) to gate 2
+    CLCnGLS2 = 0b00001000; // data2 (CLC1) to gate 3
+    CLCnGLS3 = 0b00001000; // data2 (CLC1) to gate 4
+    // Gate output polarities
+    CLCnPOLbits.G1POL = 0;
+    CLCnPOLbits.G2POL = 0;
+    CLCnPOLbits.G3POL = 0;
+    CLCnPOLbits.G4POL = 0;
+    // Logic function is AND-OR
+    CLCnCONbits.MODE = 0b000;
+    CLCnPOLbits.POL = 1; // Invert output; EVENT# is active low
+    // Enable CLC3
+    CLCnCONbits.EN = 1;
+    //
+    // Connect the output of CLC3 to the EVENTn pin (RB7).
+    ODCONBbits.ODCB7 = 1; // Open-drain output
+    TRISBbits.TRISB7 = 0; // Drive as an output
+    GIE = 0;
+    PPSLOCK = 0x55;
+    PPSLOCK = 0xaa;
+    PPSLOCKED = 0;
+    CLCIN1PPS = 0b001110; // RB6
+    RB7PPS = 0x03; // CLC3OUT
+    PPSLOCK = 0x55;
+    PPSLOCK = 0xaa;
+    PPSLOCKED = 1;
+    //
     return 0; // Success is presumed.
 }
 
 void disable_comparator()
 {
-    CM1CON0bits.EN = 0;
-    CLCSELECT = 0b00; // To select CLC1 for the following setting.
+    // Release the EVENTn pin and disable CLC3, CLC1, and comparator.
+    LATBbits.LATB7 = 1;
+    TRISBbits.TRISB7 = 1; // return to being an input
+    GIE = 0;
+    PPSLOCK = 0x55;
+    PPSLOCK = 0xaa;
+    PPSLOCKED = 0;
+    RB7PPS = 0x00; // LATB7 (back to software control)
+    PPSLOCK = 0x55;
+    PPSLOCK = 0xaa;
+    PPSLOCKED = 1;
+    //
+    CLCSELECT = 0b10; // Disable CLC3
+    CLCnCONbits.EN = 0;
+    CLCSELECT = 0b00; // Disable CLC1
     CLCnCONbits.EN = 0;
     CM1CON0bits.EN = 0;
     DAC2CONbits.EN = 0;
@@ -471,6 +481,16 @@ void interpret_RS485_command(char* cmdStr)
             // READY/BUSYn is from the AVR.
             // EVENTn is a party line that anyone may pull low.
             nchar = snprintf(bufB, NBUFB, "/0Q %d %d#\n", EVENTPIN, READYPIN);
+            uart1_putstr(bufB);
+            break;
+        case 'D':
+            // Debug: Query CLC and comparator states
+            // Read CLC outputs and comparator output
+            nchar = snprintf(bufB, NBUFB, "/0D RB6=%d RB7=%d CMP=%d CLC1=%d CLC3=%d#\n", 
+                PORTBbits.RB6, PORTBbits.RB7, 
+                CMOUTbits.MC1OUT, 
+                CLCDATAbits.CLC1OUT, 
+                CLCDATAbits.CLC3OUT);
             uart1_putstr(bufB);
             break;
         case 'F':
