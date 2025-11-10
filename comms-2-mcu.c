@@ -3,7 +3,8 @@
 // A Pico2 is the DAQ-MCU.
 //
 // PJ: 2025-04-07 First cut is just a copy of the COMMS-MCU code from the AVR board.
-// JH: 2025-11-10 Fixed the EVENT# pin handling
+// JM: 2025-11-10 Fixed the EVENT# pin handling
+// PJ: 2025-11-11 Simplify the external trigger, back to the COMMS-1 approach.
 //
 // CONFIG1
 #pragma config FEXTOSC = OFF
@@ -66,7 +67,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#define VERSION_STR "v0.43 PIC18F16Q41 COMMS-2-MCU 2025-11-10"
+#define VERSION_STR "v0.5 PIC18F16Q41 COMMS-2-MCU 2025-11-11"
 
 // Each device on the RS485 network has a unique single-character identity.
 // The master (PC) has identity '0'. Slave nodes may be 1-9A-Za-z.
@@ -310,35 +311,8 @@ uint8_t enable_comparator(uint8_t level, int8_t slope)
     CLCnPOLbits.G4POL = 0;
     // Logic function is S-R latch
     CLCnCONbits.MODE = 0b011;
-    CLCnPOLbits.POL = 0; // No inversion on CLC1 itself
-    // Now that the S-R latch is set up, enable it.
-    CLCnCONbits.EN = 1;
-    //
-    // Use CLC3 to combine the Pico2-EVENT (RB6) signal with CLC1 latch output.
-    // PICO2_EVENT (RB6) is active HIGH, CLC1 output is active HIGH.
-    // SYS_EVENT (RB7) should be active LOW when either input is active.
-    // Logic: RB7 = NOT(RB6 OR CLC1)
-    CLCSELECT = 0b10; // To select CLC3 registers
-    CLCnCONbits.EN = 0; // Disable while setting up
-    // Data select from outside world
-    CLCnSEL0 = 0b1; // data1 gets CLCIN1PPS (RB6)
-    CLCnSEL1 = 0b00100010; // data2 gets CLC1 output
-    CLCnSEL2 = 0b1; // data3 gets CLCIN1PPS
-    CLCnSEL3 = 0b00100010; // data4 gets CLC1
-    // Logic select for OR: G1=d1, G2=d1, G3=d2, G4=d2 gives d1 OR d2
-    CLCnGLS0 = 0b00000010; // data1 (RB6) to gate 1
-    CLCnGLS1 = 0b00000010; // data1 (RB6) to gate 2
-    CLCnGLS2 = 0b00001000; // data2 (CLC1) to gate 3
-    CLCnGLS3 = 0b00001000; // data2 (CLC1) to gate 4
-    // Gate output polarities
-    CLCnPOLbits.G1POL = 0;
-    CLCnPOLbits.G2POL = 0;
-    CLCnPOLbits.G3POL = 0;
-    CLCnPOLbits.G4POL = 0;
-    // Logic function is AND-OR
-    CLCnCONbits.MODE = 0b000;
     CLCnPOLbits.POL = 1; // Invert output; EVENT# is active low
-    // Enable CLC3
+    // Now that the S-R latch is set up, enable it.
     CLCnCONbits.EN = 1;
     //
     // Connect the output of CLC3 to the EVENTn pin (RB7).
@@ -349,7 +323,7 @@ uint8_t enable_comparator(uint8_t level, int8_t slope)
     PPSLOCK = 0xaa;
     PPSLOCKED = 0;
     CLCIN1PPS = 0b001110; // RB6
-    RB7PPS = 0x03; // CLC3OUT
+    RB7PPS = 0x01; // CLC1OUT
     PPSLOCK = 0x55;
     PPSLOCK = 0xaa;
     PPSLOCKED = 1;
@@ -359,7 +333,7 @@ uint8_t enable_comparator(uint8_t level, int8_t slope)
 
 void disable_comparator()
 {
-    // Release the EVENTn pin and disable CLC3, CLC1, and comparator.
+    // Release the EVENTn pin and disable CLC1 and comparator.
     LATBbits.LATB7 = 1;
     TRISBbits.TRISB7 = 1; // return to being an input
     GIE = 0;
@@ -371,8 +345,6 @@ void disable_comparator()
     PPSLOCK = 0xaa;
     PPSLOCKED = 1;
     //
-    CLCSELECT = 0b10; // Disable CLC3
-    CLCnCONbits.EN = 0;
     CLCSELECT = 0b00; // Disable CLC1
     CLCnCONbits.EN = 0;
     CM1CON0bits.EN = 0;
