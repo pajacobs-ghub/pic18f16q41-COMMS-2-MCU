@@ -141,7 +141,7 @@ int getche(void)
 //----------------------------------------------------------------------------
 // UART2 is used to communicate with the Pico2 DAQ-MCU.
 
-#define SWAP_RB4_RB5 1
+#define SWAP_RB4_RB5 0
 
 #if SWAP_RB4_RB5
 // Jeremy M.
