@@ -97,7 +97,7 @@ void init_pins()
     TRISBbits.TRISB7 = 1;
     ANSELBbits.ANSELB7 = 0;
     //
-    // RC6 as digital-output for restart of DAQ_MCU
+    // RC6 as digital-output for restart of DAQ-MCU
     ODCONCbits.ODCC6 = 1;
     RESTARTn = 1;
     TRISCbits.TRISC6 = 0;
@@ -315,14 +315,13 @@ uint8_t enable_comparator(uint8_t level, int8_t slope)
     // Now that the S-R latch is set up, enable it.
     CLCnCONbits.EN = 1;
     //
-    // Connect the output of CLC3 to the EVENTn pin (RB7).
+    // Connect the output of CLC1 to the EVENTn pin (RB7).
     ODCONBbits.ODCB7 = 1; // Open-drain output
     TRISBbits.TRISB7 = 0; // Drive as an output
     GIE = 0;
     PPSLOCK = 0x55;
     PPSLOCK = 0xaa;
     PPSLOCKED = 0;
-    CLCIN1PPS = 0b001110; // RB6
     RB7PPS = 0x01; // CLC1OUT
     PPSLOCK = 0x55;
     PPSLOCK = 0xaa;
@@ -358,7 +357,7 @@ char bufA[NBUFA];
 // For outgoing RS485 comms
 #define NBUFB 268
 char bufB[NBUFB];
-// For incoming AVR responses
+// For incoming DAQ-MCU responses
 #define NBUFC 256
 char bufC[NBUFC];
 
@@ -450,7 +449,7 @@ void interpret_RS485_command(char* cmdStr)
             break;
         case 'Q':
             // Query the status signals.
-            // READY/BUSYn is from the AVR.
+            // READY/BUSYn is from the DAQ-MCU.
             // EVENTn is a party line that anyone may pull low.
             nchar = snprintf(bufB, NBUFB, "/0Q %d %d#\n", EVENTPIN, READYPIN);
             uart1_putstr(bufB);
@@ -466,21 +465,21 @@ void interpret_RS485_command(char* cmdStr)
             uart1_putstr(bufB);
             break;
         case 'F':
-            // Flush the RX2 buffer for incoming text from the AVR.
+            // Flush the RX2 buffer for incoming text from the DAQ-MCU.
             uart2_flush_rx();
             nchar = snprintf(bufB, NBUFB, "/0F Flushed RX2 buffer#\n");
             uart1_putstr(bufB);
             break;
         case 'R':
-            // Restart the attached DAQ MCU.
+            // Restart the attached DAQ-MCU.
             RESTARTn = 0;
             __delay_ms(1);
             RESTARTn = 1;
-            // Wait until we are reasonably sure that the DAQ MCU has restarted
+            // Wait until we are reasonably sure that the DAQ-MCU has restarted
             // and then flush the incoming serial buffer.
             __delay_ms(350);
             uart2_flush_rx();
-            nchar = snprintf(bufB, NBUFB, "/0R DAQ_MCU restarted#\n");
+            nchar = snprintf(bufB, NBUFB, "/0R DAQ-MCU restarted#\n");
             uart1_putstr(bufB);
             break;
         case 'L':
@@ -570,19 +569,19 @@ void interpret_RS485_command(char* cmdStr)
             uart1_putstr(bufB);
             break;
         case 'X':
-            // Pass through a command to the AVR MCU.
+            // Pass through a command to the DAQ-MCU.
             if (READYPIN) {
-                // DAQ MCU is ready and waiting for a command.
+                // DAQ-MCU is ready and waiting for a command.
                 // nchar = snprintf(bufB, NBUFB, "DEBUG About to send command:%s\n", &cmdStr[1]); uart1_putstr(bufB);
                 uart2_putstr(&cmdStr[1]);
                 uart2_putch('\n');
-                // The DAQ MCU may start its response within 200us,
+                // The DAQ-MCU may start its response within 200us,
                 // so start listening for that response immediately.
                 uart2_getstr(bufC, NBUFC);
                 nchar = snprintf(bufB, NBUFB, "/0X %s#\n", &bufC[0]);
             } else {
-                // DAQ MCU is not ready for a command.
-                nchar = snprintf(bufB, NBUFB, "/0X error: DAQ MCU busy#\n");
+                // DAQ-MCU is not ready for a command.
+                nchar = snprintf(bufB, NBUFB, "/0X error: DAQ-MCU busy#\n");
             }
             uart1_putstr(bufB);
             break;
